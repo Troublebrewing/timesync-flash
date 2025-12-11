@@ -1,0 +1,150 @@
+
+<!-- saved from url=(0038)http://www.amp.jhnet.co.uk/programmer/ -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+		<style>
+			body {
+				background-color : #333333;
+				text-align : center;
+				
+				margin : 0;
+				padding : 0;
+			}
+			
+			#flasher {
+				border-width : 3px;
+				border-style : solid;
+				border-color : #AAAAAA;
+				
+				margin-top : 70px;
+				margin-left : auto;
+				margin-right : auto;
+			}
+			
+			#instructions {
+				margin-top : 70px;
+			}
+			
+			#warning {
+				font-family : Arial, Sans;
+				font-size : 10pt;
+				color : #AAAAAA;
+				margin-top : 20px;
+			}
+		</style>
+		<title>Unicom Programmer</title>
+	</head>
+	
+	<body>
+		
+		<img id="instructions" src="./Unicom Programmer_files/instructions.png"><br>
+		
+		<div id="flasher" tabindex="0"></div>
+		
+		<p id="warning">Warning: Flashing lights.</p>
+		
+		<style>
+			#flasher {
+				width: 540;
+				height: 400;
+				background-color: black;
+				cursor: pointer;
+			}
+		</style>
+		
+		<script type="text/javascript">
+			
+			function sync(duration=20) {
+				const out = [];
+				for (let i = 0; i < duration; i++) {
+					out.push(1);
+				}
+				out.push(0);  // Indicates end of sync period
+				return out;
+			}
+			
+			function dataWord(data) {
+				const out = [];
+				for (let by = 0; by < 4; by++) {
+					const dataByte = (data >> (by*8)) & 0xFF;
+					for (let bi = 7; bi >= 0; bi--) {
+						out.push((dataByte >> bi) & 1);
+					}
+				}
+				return out;
+			}
+			
+			function dataDateTime(dateTime) {
+				const tzOffset = dateTime.getTimezoneOffset() * 60;
+				const unixTime = ((dateTime.getTime() / 1000) - tzOffset) | 0;
+				return dataWord(unixTime)
+			}
+			
+			function toFrames(bits) {
+				const out = [];
+				for (const bit of bits) {
+					out.push(bit ^ 1);
+					out.push(bit);
+				}
+				return out;
+			}
+			
+			class Flasher {
+				constructor(element, fps=60) {
+					this.element = element;
+					this.frames = [];
+					this.nextFrame = 0;
+					this.period = 1000 / fps;
+				}
+				
+				_playFrame() {
+					if (performance.now() >= this.nextFrame) {
+						this.nextFrame += this.period;
+						
+						const state = this.frames.shift();
+						this.element.style.backgroundColor = state ? "white" : "black";
+					}
+					if (this.frames.length > 0) {
+						requestAnimationFrame(this._playFrame.bind(this));
+					}
+				}
+				
+				isPlaying() {
+					return this.frames.length != 0;
+				}
+				
+				play(frames) {
+					if (!this.isPlaying()) {
+						requestAnimationFrame(this._playFrame.bind(this));
+					}
+					this.frames = frames;
+					this.nextFrame = performance.now();
+				}
+				
+				stop(frames) {
+					this.play([0]);
+				}
+			}
+			
+			const flasherDiv = document.getElementById("flasher")
+			const flasher = new Flasher(flasherDiv);
+			
+			flasherDiv.addEventListener("click", function () {
+				if (!flasher.isPlaying()) {
+					const syncLength = 20;
+					const syncDuration = flasher.period * 2 * (syncLength + 1);
+					const now = new Date();
+					const timeOnSyncEnd = new Date(now.getTime() + syncDuration)
+					flasher.play(toFrames([
+						...sync(syncLength),
+						...dataDateTime(timeOnSyncEnd),
+					]));
+				} else {
+					flasher.stop();
+				}
+			});
+			
+		</script>
+		
+	
+
+</body></html>

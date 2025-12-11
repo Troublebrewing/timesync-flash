@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>TimeSync</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 10%;
+            font-size: 1.5rem;
+        }
+        #status {
+            margin-top: 20px;
+            color: green;
+        }
+        button {
+            font-size: 1rem;
+            padding: 10px 20px;
+            margin-top: 20px;
+            background-color: aqua;
+            margin: auto;
+            border-radius: 15px
+        }
+        .top-right {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div>
+        <a class="top-right" href="https://github.com/Troublebrewing/timesync" target="_blank">
+            <img src="https://img.shields.io/github/stars/Troublebrewing/timesync?style=social"
+                 alt="GitHub Repo Stars"></a>
+
+        <h1>TimeSync</h1>
+        
+        <div>TimeSync is a tool to syncronize the internal real time clock of small devices with limited input means. The tool can send time to the device in various formats, and account for local timezone offset.</div>
+        <br>
+
+        <div>Local Time: <span id="humanTime"></span></div>
+        <div>Unix/Epoch Time: <span id="unixTime"></span></div>
+            <br>
+        <label for="timezone">Select Time Zone:</label>        
+        <select id="timezone" name="timezone">
+            <option value="-12">UTC-12:00</option>
+            <option value="-11">UTC-11:00</option>
+            <option value="-10">UTC-10:00</option>
+            <option value="-9">UTC-09:00</option>
+            <option value="-8">UTC-08:00</option>
+            <option value="-7">UTC-07:00</option>
+            <option value="-6">UTC-06:00</option>
+            <option value="-5">UTC-05:00</option>
+            <option value="-4">UTC-04:00</option>
+            <option value="-3">UTC-03:00</option>
+            <option value="-2">UTC-02:00</option>
+            <option value="-1">UTC-01:00</option>
+            <option value="0" selected>UTC+00:00</option>
+            <option value="1">UTC+01:00</option>
+            <option value="2">UTC+02:00</option>
+            <option value="3">UTC+03:00</option>
+            <option value="4">UTC+04:00</option>
+            <option value="5">UTC+05:00</option>
+            <option value="6">UTC+06:00</option>
+            <option value="7">UTC+07:00</option>
+            <option value="8">UTC+08:00</option>
+            <option value="9">UTC+09:00</option>
+            <option value="10">UTC+10:00</option>
+            <option value="11">UTC+11:00</option>
+            <option value="12">UTC+12:00</option>
+        </select>
+                
+        <div>Unix/Epoch Time with timezone offset: <span id="offsetTime"></span></div>
+        <br>
+        <button id="sendTimeBtn">Send Time to Serial Port</button>
+        <div id="status"></div>
+    </div>
+
+    
+
+    
+
+    <script>
+        // --- Time Display ---
+        function updateTime() {
+            const now = new Date();
+            document.getElementById("humanTime").textContent =
+                now.toLocaleString();
+            document.getElementById("unixTime").textContent =
+                Math.floor(now.getTime() / 1000);
+            const timezoneOffset = document.getElementById("timezone").value;
+            document.getElementById("offsetTime").textContent =
+                Math.floor(now.getTime() / 1000)+(timezoneOffset*3600);
+
+        }
+
+        updateTime();
+        setInterval(updateTime, 1000);
+
+        // --- Web Serial Logic ---
+        let port;
+        let writer;
+        let reader;
+
+        async function sendTimeOverSerial() {
+            let timeoutId;
+            try {
+                // Request serial port
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+
+                writer = port.writable.getWriter();
+                reader = port.readable.getReader();
+
+                const timezoneOffset = document.getElementById("timezone").value;
+                const offsetTime = Math.floor(Date.now() / 1000)+(timezoneOffset*3600);
+
+                const message = "T" + offsetTime.toString();
+
+                // Send the time
+                await writer.write(new TextEncoder().encode(message));
+                document.getElementById("status").textContent =
+                    "Time sent, waiting for echo...";
+
+                // --- Timeout Promise (5 seconds) ---
+                const timeoutPromise = new Promise((_, reject) => {
+                    timeoutId = setTimeout(() => reject(new Error("timeout")), 5000);
+                });
+
+                // --- Read Promise ---
+                const readPromise = reader.read();
+
+                // Race read vs timeout
+                const result = await Promise.race([readPromise, timeoutPromise]);
+
+                // If read won the race
+                const response = new TextDecoder().decode(result.value).trim();
+                clearTimeout(timeoutId);
+
+                if (response == message.toString()) {
+                    document.getElementById("status").textContent =
+                        "Echo received! ✔️ (" + response + ")";
+                } else {
+                    document.getElementById("status").textContent =
+                        "Received something else: " + response;
+                }
+
+                // Cleanup
+                reader.releaseLock();
+                writer.releaseLock();
+                await port.close();
+
+            } catch (err) {
+                if (err.message === "timeout") {
+                    document.getElementById("status").textContent =
+                        "Time Sync failed";                    
+                } else {
+                    document.getElementById("status").textContent =
+                        "Error: " + err;
+                }
+
+                document.getElementById("status").style.color = "red";
+
+                // Ensure clean shutdown
+                try { reader?.releaseLock(); } catch {}
+                try { writer?.releaseLock(); } catch {}
+                try { await port?.close(); } catch {}
+            }
+        }
+
+        document.getElementById("sendTimeBtn")
+            .addEventListener("click", sendTimeOverSerial);
+    </script>
+
+</body>
+</html>
