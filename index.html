@@ -2,18 +2,19 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>TimeSync</title>
+    <title>TimeSync-Flash</title>
     <style>
-        body {
+        html, body {
             font-family: Arial, sans-serif;
             text-align: center;
             margin-top: 10%;
             font-size: 1.5rem;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+            background-color: black;
         }
-        #status {
-            margin-top: 20px;
-            color: green;
-        }
+        
         button {
             font-size: 1rem;
             padding: 10px 20px;
@@ -27,152 +28,171 @@
             top: 10px;
             right: 10px;
         }
+        #title {
+            color: white;
+            /*background-color: black;*/
+            height: 10%
+            padding: 0;
+            margin: 0;
+        }
+        #button-div {
+            width: 100%;
+            height: 90%;
+            /*background-color: black;*/
+            margin: auto;
+            cursor: pointer;
+            line-height: 400px;
+            color: white;
+            font-size: 2rem;
+            user-select: none;
+        }
+        #warning {
+            font-size: 1rem;
+            color: white;
+            margin-top: 20px;
+        }
     </style>
 </head>
-<body>
+<body id="body">
 
-    <div>
-        <a class="top-right" href="https://github.com/Troublebrewing/timesync" target="_blank">
-            <img src="https://img.shields.io/github/stars/Troublebrewing/timesync?style=social"
-                 alt="GitHub Repo Stars"></a>
+    
+    <a class="top-right" href="https://github.com/Troublebrewing/timesync-flash" target="_blank">
+        <img src="https://img.shields.io/github/stars/Troublebrewing/timesync-flash?style=social"
+                alt="GitHub Repo Stars"></a>
 
-        <h1>TimeSync</h1>
+    <h1 id="title">TimeSync-Flash</h1>
+    
+    <div id="button-div">
+        <div>Tap to set time</div>
+        <div id="warning">WARNING: FLASHING LIGHTS</div>
+    </div>       
+
+
         
-        <div>TimeSync is a tool to syncronize the internal real time clock of small devices with limited input means. The tool can send time to the device in various formats, and account for local timezone offset.</div>
-        <br>
-
-        <div>Local Time: <span id="humanTime"></span></div>
-        <div>Unix/Epoch Time: <span id="unixTime"></span></div>
-            <br>
-        <label for="timezone">Select Time Zone:</label>        
-        <select id="timezone" name="timezone">
-            <option value="-12">UTC-12:00</option>
-            <option value="-11">UTC-11:00</option>
-            <option value="-10">UTC-10:00</option>
-            <option value="-9">UTC-09:00</option>
-            <option value="-8">UTC-08:00</option>
-            <option value="-7">UTC-07:00</option>
-            <option value="-6">UTC-06:00</option>
-            <option value="-5">UTC-05:00</option>
-            <option value="-4">UTC-04:00</option>
-            <option value="-3">UTC-03:00</option>
-            <option value="-2">UTC-02:00</option>
-            <option value="-1">UTC-01:00</option>
-            <option value="0" selected>UTC+00:00</option>
-            <option value="1">UTC+01:00</option>
-            <option value="2">UTC+02:00</option>
-            <option value="3">UTC+03:00</option>
-            <option value="4">UTC+04:00</option>
-            <option value="5">UTC+05:00</option>
-            <option value="6">UTC+06:00</option>
-            <option value="7">UTC+07:00</option>
-            <option value="8">UTC+08:00</option>
-            <option value="9">UTC+09:00</option>
-            <option value="10">UTC+10:00</option>
-            <option value="11">UTC+11:00</option>
-            <option value="12">UTC+12:00</option>
-        </select>
-                
-        <div>Unix/Epoch Time with timezone offset: <span id="offsetTime"></span></div>
-        <br>
-        <button id="sendTimeBtn">Send Time to Serial Port</button>
-        <div id="status"></div>
-    </div>
+    
 
     
 
     
 
     <script>
-        // --- Time Display ---
-        function updateTime() {
-            const now = new Date();
-            document.getElementById("humanTime").textContent =
-                now.toLocaleString();
-            document.getElementById("unixTime").textContent =
-                Math.floor(now.getTime() / 1000);
-            const timezoneOffset = document.getElementById("timezone").value;
-            document.getElementById("offsetTime").textContent =
-                Math.floor(now.getTime() / 1000)+(timezoneOffset*3600);
-
+        function togglebg() {
+            const body = document.body;
+            body.style.backgroundColor = body.style.backgroundColor === 'black' ? 'white' : 'black';
+            const buttonDiv = document.getElementById("button-div");
+            buttonDiv.style.color = buttonDiv.style.color === 'white' ? 'black' : 'white';
+            const title = document.getElementById("title");
+            title.style.color = title.style.color === 'white' ? 'black' : 'white';
         }
 
-        updateTime();
-        setInterval(updateTime, 1000);
-
-        // --- Web Serial Logic ---
-        let port;
-        let writer;
-        let reader;
-
-        async function sendTimeOverSerial() {
-            let timeoutId;
-            try {
-                // Request serial port
-                port = await navigator.serial.requestPort();
-                await port.open({ baudRate: 115200 });
-
-                writer = port.writable.getWriter();
-                reader = port.readable.getReader();
-
-                const timezoneOffset = document.getElementById("timezone").value;
-                const offsetTime = Math.floor(Date.now() / 1000)+(timezoneOffset*3600);
-
-                const message = "T" + offsetTime.toString();
-
-                // Send the time
-                await writer.write(new TextEncoder().encode(message));
-                document.getElementById("status").textContent =
-                    "Time sent, waiting for echo...";
-
-                // --- Timeout Promise (5 seconds) ---
-                const timeoutPromise = new Promise((_, reject) => {
-                    timeoutId = setTimeout(() => reject(new Error("timeout")), 5000);
-                });
-
-                // --- Read Promise ---
-                const readPromise = reader.read();
-
-                // Race read vs timeout
-                const result = await Promise.race([readPromise, timeoutPromise]);
-
-                // If read won the race
-                const response = new TextDecoder().decode(result.value).trim();
-                clearTimeout(timeoutId);
-
-                if (response == message.toString()) {
-                    document.getElementById("status").textContent =
-                        "Echo received! ✔️ (" + response + ")";
-                } else {
-                    document.getElementById("status").textContent =
-                        "Received something else: " + response;
+        function sync(duration=20) {
+            const out = [];
+            for (let i = 0; i < duration; i++) {
+                out.push(1);
+            }
+            out.push(0);  // Indicates end of sync period
+            return out;
+        }
+			
+        function dataWord(data) {
+            const out = [];
+            for (let by = 0; by < 4; by++) {
+                const dataByte = (data >> (by*8)) & 0xFF;
+                for (let bi = 7; bi >= 0; bi--) {
+                    out.push((dataByte >> bi) & 1);
                 }
+            }
+            return out;
+        }
+        
+        function dataDateTime(dateTime) {
+            const tzOffset = dateTime.getTimezoneOffset() * 60;
+            const unixTime = ((dateTime.getTime() / 1000) - tzOffset) | 0;
+            return dataWord(unixTime)
+        }
 
-                // Cleanup
-                reader.releaseLock();
-                writer.releaseLock();
-                await port.close();
+        function toFrames(bits) {
+            const out = [];
+            for (const bit of bits) {
+                out.push(bit ^ 1);
+                out.push(bit);
+            }
+            return out;
+        }
 
-            } catch (err) {
-                if (err.message === "timeout") {
-                    document.getElementById("status").textContent =
-                        "Time Sync failed";                    
-                } else {
-                    document.getElementById("status").textContent =
-                        "Error: " + err;
+        class Flasher {
+            constructor(bg_element, fg_elements, fps=30) {
+                this.fg_elements = fg_elements;
+                this.bg_element = bg_element;
+                this.frames = [];
+                this.nextFrame = 0;
+                this.period = 1000 / fps;
+            }
+            
+            _playFrame() {
+                if (performance.now() >= this.nextFrame) {
+                    this.nextFrame += this.period;
+                    
+                    const state = this.frames.shift();
+                    //this.element.style.backgroundColor = state ? "white" : "black";
+
+                    //this.bg_element.style.backgroundColor = this.bg_element.style.backgroundColor === 'black' ? 'white' : 'black';
+                    this.bg_element.style.backgroundColor = this.bg_element.style.backgroundColor === 'white' ? 'black' : 'white';
+                    for (const fg_element of this.fg_elements) {
+                        fg_element.style.color = fg_element.style.color === 'white' ? 'black' : 'white';
+                    }
                 }
+                if (this.frames.length > 0) {
+                    requestAnimationFrame(this._playFrame.bind(this));
+                }
+            }
+            
+            isPlaying() {
+                return this.frames.length != 0;
+            }
 
-                document.getElementById("status").style.color = "red";
+            resetFGElements() {
+                for (const fg_element of this.fg_elements) {
+                    fg_element.style.color = 'white';
+                }
+                this.bg_element.style.backgroundColor = 'black';
+            }
+            
+            play(frames) {
+                if (!this.isPlaying()) {
+                    requestAnimationFrame(this._playFrame.bind(this));
+                }
+                this.frames = frames;
+                this.nextFrame = performance.now();
 
-                // Ensure clean shutdown
-                try { reader?.releaseLock(); } catch {}
-                try { writer?.releaseLock(); } catch {}
-                try { await port?.close(); } catch {}
+                this.resetFGElements();
+            }
+            
+            stop(frames) {
+                this.play([0]);
             }
         }
 
-        document.getElementById("sendTimeBtn")
-            .addEventListener("click", sendTimeOverSerial);
+        function taphandler() {
+            const bg_element = document.body;
+            const fg_elements = [
+                document.getElementById("button-div"),
+                document.getElementById("title"),
+                document.getElementById("warning"),
+            ];
+			const flasher = new Flasher(bg_element, fg_elements);
+            
+            const syncLength = 20;
+            const syncDuration = flasher.period * 2 * (syncLength + 1);
+            const now = new Date();
+            const sync_data = sync(syncLength);
+            const offsetnow_data = dataDateTime(now);
+
+            flasher.play(toFrames([...sync(syncLength), ...dataDateTime(now),]));
+        }
+
+        document.getElementById("button-div")
+            .addEventListener("click", taphandler);
     </script>
 
 </body>
