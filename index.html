@@ -139,11 +139,13 @@
                     //this.bg_element.style.backgroundColor = this.bg_element.style.backgroundColor === 'black' ? 'white' : 'black';
                     this.bg_element.style.backgroundColor = this.bg_element.style.backgroundColor === 'white' ? 'black' : 'white';
                     for (const fg_element of this.fg_elements) {
-                        fg_element.style.color = fg_element.style.color === 'white' ? 'black' : 'white';
+                        fg_element.style.color = this.bg_element.style.backgroundColor;
                     }
                 }
                 if (this.frames.length > 0) {
                     requestAnimationFrame(this._playFrame.bind(this));
+                }else{
+                    this.resetFGElements();
                 }
             }
             
@@ -164,8 +166,6 @@
                 }
                 this.frames = frames;
                 this.nextFrame = performance.now();
-
-                this.resetFGElements();
             }
             
             stop(frames) {
@@ -188,7 +188,7 @@
             const sync_data = sync(syncLength);
             const offsetnow_data = dataDateTime(now);
 
-            flasher.play(toFrames([...sync(syncLength), ...dataDateTime(now),]));
+            flasher.play(toFrames([...sync(syncLength), ...dataDateTime(now)]));
         }
 
         document.getElementById("button-div")
